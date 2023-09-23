@@ -8,18 +8,32 @@
  * This program is licenced under the same licence as Ruby.
  * (See the file 'LICENCE'.)
  */
-#if !defined(OPENSSL_NO_RSA)
 
 #include "ossl.h"
 
+#if !defined(OPENSSL_NO_RSA)
+
 #define GetPKeyRSA(obj, pkey) do { \
     GetPKey(obj, pkey); \
-    if (EVP_PKEY_type(pkey->type) != EVP_PKEY_RSA) { /* PARANOIA? */ \
+    if (EVP_PKEY_base_id(pkey) != EVP_PKEY_RSA) { /* PARANOIA? */ \
 	ossl_raise(rb_eRuntimeError, "THIS IS NOT A RSA!") ; \
     } \
 } while (0)
+#define GetRSA(obj, rsa) do { \
+    EVP_PKEY *_pkey; \
+    GetPKeyRSA((obj), _pkey); \
+    (rsa) = EVP_PKEY_get0_RSA(_pkey); \
+} while (0)
 
-#define RSA_HAS_PRIVATE(rsa) ((rsa)->p && (rsa)->q)
+static inline int
+RSA_HAS_PRIVATE(RSA *rsa)
+{
+    const BIGNUM *e, *d;
+
+    RSA_get0_key(rsa, NULL, &e, &d);
+    return e && d;
+}
+
 #define RSA_PRIVATE(obj,rsa) (RSA_HAS_PRIVATE(rsa)||OSSL_PKEY_IS_PRIVATE(obj))
 
 /*
@@ -61,7 +75,7 @@ ossl_rsa_new(EVP_PKEY *pkey)
 	obj = rsa_instance(cRSA, RSA_new());
     }
     else {
-	if (EVP_PKEY_type(pkey->type) != EVP_PKEY_RSA) {
+	if (EVP_PKEY_base_id(pkey) != EVP_PKEY_RSA) {
 	    ossl_raise(rb_eTypeError, "Not a RSA key!");
 	}
 	WrapPKey(cRSA, obj, pkey);
@@ -208,11 +222,11 @@ ossl_rsa_is_public(VALUE self)
 static VALUE
 ossl_rsa_is_private(VALUE self)
 {
-    EVP_PKEY *pkey;
-	
-    GetPKeyRSA(self, pkey);
-    
-    return (RSA_PRIVATE(self, pkey->pkey.rsa)) ? Qtrue : Qfalse;
+    RSA *rsa;
+
+    GetRSA(self, rsa);
+
+    return (RSA_PRIVATE(self, rsa)) ? Qtrue : Qfalse;
 }
 
 /*
@@ -230,13 +244,14 @@ ossl_rsa_is_private(VALUE self)
 static VALUE
 ossl_rsa_export(int argc, VALUE *argv, VALUE self)
 {
-    EVP_PKEY *pkey;
+    RSA *rsa;
+    const BIGNUM *n, *e, *d, *p, *q, *dmp1, *dmq1, *iqmp;
     BIO *out;
     const EVP_CIPHER *ciph = NULL;
     char *passwd = NULL;
     VALUE cipher, pass, str;
 
-    GetPKeyRSA(self, pkey);
+    GetRSA(self, rsa);
 
     rb_scan_args(argc, argv, "02", &cipher, &pass);
 
@@ -249,14 +264,17 @@ ossl_rsa_export(int argc, VALUE *argv, VALUE self)
     if (!(out = BIO_new(BIO_s_mem()))) {
 	ossl_raise(eRSAError, NULL);
     }
-    if (RSA_HAS_PRIVATE(pkey->pkey.rsa)) {
-	if (!PEM_write_bio_RSAPrivateKey(out, pkey->pkey.rsa, ciph,
+    RSA_get0_key(rsa, &n, &e, &d);
+    RSA_get0_factors(rsa, &p, &q);
+    RSA_get0_crt_params(rsa, &dmp1, &dmq1, &iqmp);
+    if (n && e && d && p && q && dmp1 && dmq1 && iqmp) {
+	if (!PEM_write_bio_RSAPrivateKey(out, rsa, ciph,
 					 NULL, 0, ossl_pem_passwd_cb, passwd)) {
 	    BIO_free(out);
 	    ossl_raise(eRSAError, NULL);
 	}
     } else {
-	if (!PEM_write_bio_RSAPublicKey(out, pkey->pkey.rsa)) {
+	if (!PEM_write_bio_RSAPublicKey(out, rsa)) {
 	    BIO_free(out);
 	    ossl_raise(eRSAError, NULL);
 	}
@@ -274,29 +292,33 @@ ossl_rsa_export(int argc, VALUE *argv, VALUE self)
 static VALUE
 ossl_rsa_to_der(VALUE self)
 {
-    EVP_PKEY *pkey;
+    RSA *rsa;
+    const BIGNUM *n, *e, *d, *p2, *q, *dmp1, *dmq1, *iqmp;
     int (*i2d_func)_((const RSA*, unsigned char**));
     unsigned char *p;
     long len;
     VALUE str;
 
-    GetPKeyRSA(self, pkey);
-    if(RSA_HAS_PRIVATE(pkey->pkey.rsa))
+    GetRSA(self, rsa);
+    RSA_get0_key(rsa, &n, &e, &d);
+    RSA_get0_factors(rsa, &p2, &q);
+    RSA_get0_crt_params(rsa, &dmp1, &dmq1, &iqmp);
+    if (n && e && d && p2 && q && dmp1 && dmq1 && iqmp)
 	i2d_func = i2d_RSAPrivateKey;
     else
 	i2d_func = i2d_RSAPublicKey;
-    if((len = i2d_func(pkey->pkey.rsa, NULL)) <= 0)
+    if((len = i2d_func(rsa, NULL)) <= 0)
 	ossl_raise(eRSAError, NULL);
     str = rb_str_new(0, len);
     p = RSTRING_PTR(str);
-    if(i2d_func(pkey->pkey.rsa, &p) < 0)
+    if(i2d_func(rsa, &p) < 0)
 	ossl_raise(eRSAError, NULL);
     ossl_str_adjust(str, p);
 
     return str;
 }
 
-#define ossl_rsa_buf_size(pkey) (RSA_size((pkey)->pkey.rsa)+16)
+#define ossl_rsa_buf_size2(rsa) (RSA_size(rsa)+16)
 
 /*
  *  call-seq:
@@ -306,17 +328,21 @@ ossl_rsa_to_der(VALUE self)
 static VALUE
 ossl_rsa_public_encrypt(int argc, VALUE *argv, VALUE self)
 {
-    EVP_PKEY *pkey;
+    RSA *rsa;
+    const BIGNUM *rsa_n;
     int buf_len, pad;
     VALUE str, buffer, padding;
 
-    GetPKeyRSA(self, pkey);
+    GetRSA(self, rsa);
+    RSA_get0_key(rsa, &rsa_n, NULL, NULL);
+    if (!rsa_n)
+       ossl_raise(eRSAError, "incomplete RSA");
     rb_scan_args(argc, argv, "11", &buffer, &padding);
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
-    str = rb_str_new(0, ossl_rsa_buf_size(pkey));
+    str = rb_str_new(0, ossl_rsa_buf_size2(rsa));
     buf_len = RSA_public_encrypt(RSTRING_LEN(buffer), RSTRING_PTR(buffer),
-				 RSTRING_PTR(str), pkey->pkey.rsa,
+				 RSTRING_PTR(str), rsa,
 				 pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -332,17 +358,21 @@ ossl_rsa_public_encrypt(int argc, VALUE *argv, VALUE self)
 static VALUE
 ossl_rsa_public_decrypt(int argc, VALUE *argv, VALUE self)
 {
-    EVP_PKEY *pkey;
+    RSA *rsa;
+    const BIGNUM *rsa_n;
     int buf_len, pad;
     VALUE str, buffer, padding;
 
-    GetPKeyRSA(self, pkey);
+    GetRSA(self, rsa);
+    RSA_get0_key(rsa, &rsa_n, NULL, NULL);
+    if (!rsa_n)
+       ossl_raise(eRSAError, "incomplete RSA");
     rb_scan_args(argc, argv, "11", &buffer, &padding);
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
-    str = rb_str_new(0, ossl_rsa_buf_size(pkey));
+    str = rb_str_new(0, ossl_rsa_buf_size2(rsa));
     buf_len = RSA_public_decrypt(RSTRING_LEN(buffer), RSTRING_PTR(buffer),
-				 RSTRING_PTR(str), pkey->pkey.rsa,
+				 RSTRING_PTR(str), rsa,
 				 pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -358,20 +388,24 @@ ossl_rsa_public_decrypt(int argc, VALUE *argv, VALUE self)
 static VALUE
 ossl_rsa_private_encrypt(int argc, VALUE *argv, VALUE self)
 {
-    EVP_PKEY *pkey;
+    RSA *rsa;
+    const BIGNUM *rsa_n;
     int buf_len, pad;
     VALUE str, buffer, padding;
 
-    GetPKeyRSA(self, pkey);
-    if (!RSA_PRIVATE(self, pkey->pkey.rsa)) {
+    GetRSA(self, rsa);
+    RSA_get0_key(rsa, &rsa_n, NULL, NULL);
+    if (!rsa_n)
+       ossl_raise(eRSAError, "incomplete RSA");
+    if (!RSA_PRIVATE(self, rsa)) {
 	ossl_raise(eRSAError, "private key needed.");
     }	
     rb_scan_args(argc, argv, "11", &buffer, &padding);
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
-    str = rb_str_new(0, ossl_rsa_buf_size(pkey));
+    str = rb_str_new(0, ossl_rsa_buf_size2(rsa));
     buf_len = RSA_private_encrypt(RSTRING_LEN(buffer), RSTRING_PTR(buffer),
-				  RSTRING_PTR(str), pkey->pkey.rsa,
+				  RSTRING_PTR(str), rsa,
 				  pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -388,20 +422,24 @@ ossl_rsa_private_encrypt(int argc, VALUE *argv, VALUE self)
 static VALUE
 ossl_rsa_private_decrypt(int argc, VALUE *argv, VALUE self)
 {
-    EVP_PKEY *pkey;
+    RSA *rsa;
+    const BIGNUM *rsa_n;
     int buf_len, pad;
     VALUE str, buffer, padding;
 
-    GetPKeyRSA(self, pkey);
-    if (!RSA_PRIVATE(self, pkey->pkey.rsa)) {
+    GetRSA(self, rsa);
+    RSA_get0_key(rsa, &rsa_n, NULL, NULL);
+    if (!rsa_n)
+       ossl_raise(eRSAError, "incomplete RSA");
+    if (!RSA_PRIVATE(self, rsa)) {
 	ossl_raise(eRSAError, "private key needed.");
     }
     rb_scan_args(argc, argv, "11", &buffer, &padding);
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
-    str = rb_str_new(0, ossl_rsa_buf_size(pkey));
+    str = rb_str_new(0, ossl_rsa_buf_size2(rsa));
     buf_len = RSA_private_decrypt(RSTRING_LEN(buffer), RSTRING_PTR(buffer),
-				  RSTRING_PTR(str), pkey->pkey.rsa,
+				  RSTRING_PTR(str), rsa,
 				  pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -420,21 +458,25 @@ ossl_rsa_private_decrypt(int argc, VALUE *argv, VALUE self)
 static VALUE
 ossl_rsa_get_params(VALUE self)
 {
-    EVP_PKEY *pkey;
+    RSA *rsa;
     VALUE hash;
+    const BIGNUM *n, *e, *d, *p, *q, *dmp1, *dmq1, *iqmp;
 
-    GetPKeyRSA(self, pkey);
+    GetRSA(self, rsa);
+    RSA_get0_key(rsa, &n, &e, &d);
+    RSA_get0_factors(rsa, &p, &q);
+    RSA_get0_crt_params(rsa, &dmp1, &dmq1, &iqmp);
 
     hash = rb_hash_new();
 
-    rb_hash_aset(hash, rb_str_new2("n"), ossl_bn_new(pkey->pkey.rsa->n));
-    rb_hash_aset(hash, rb_str_new2("e"), ossl_bn_new(pkey->pkey.rsa->e));
-    rb_hash_aset(hash, rb_str_new2("d"), ossl_bn_new(pkey->pkey.rsa->d));
-    rb_hash_aset(hash, rb_str_new2("p"), ossl_bn_new(pkey->pkey.rsa->p));
-    rb_hash_aset(hash, rb_str_new2("q"), ossl_bn_new(pkey->pkey.rsa->q));
-    rb_hash_aset(hash, rb_str_new2("dmp1"), ossl_bn_new(pkey->pkey.rsa->dmp1));
-    rb_hash_aset(hash, rb_str_new2("dmq1"), ossl_bn_new(pkey->pkey.rsa->dmq1));
-    rb_hash_aset(hash, rb_str_new2("iqmp"), ossl_bn_new(pkey->pkey.rsa->iqmp));
+    rb_hash_aset(hash, rb_str_new2("n"), ossl_bn_new(n));
+    rb_hash_aset(hash, rb_str_new2("e"), ossl_bn_new(e));
+    rb_hash_aset(hash, rb_str_new2("d"), ossl_bn_new(d));
+    rb_hash_aset(hash, rb_str_new2("p"), ossl_bn_new(p));
+    rb_hash_aset(hash, rb_str_new2("q"), ossl_bn_new(q));
+    rb_hash_aset(hash, rb_str_new2("dmp1"), ossl_bn_new(dmp1));
+    rb_hash_aset(hash, rb_str_new2("dmq1"), ossl_bn_new(dmq1));
+    rb_hash_aset(hash, rb_str_new2("iqmp"), ossl_bn_new(iqmp));
     
     return hash;
 }
@@ -450,15 +492,15 @@ ossl_rsa_get_params(VALUE self)
 static VALUE
 ossl_rsa_to_text(VALUE self)
 {
-    EVP_PKEY *pkey;
+    RSA *rsa;
     BIO *out;
     VALUE str;
 
-    GetPKeyRSA(self, pkey);
+    GetRSA(self, rsa);
     if (!(out = BIO_new(BIO_s_mem()))) {
 	ossl_raise(eRSAError, NULL);
     }
-    if (!RSA_print(out, pkey->pkey.rsa, 0)) { /* offset = 0 */
+    if (!RSA_print(out, rsa, 0)) { /* offset = 0 */
 	BIO_free(out);
 	ossl_raise(eRSAError, NULL);
     }
@@ -482,7 +524,7 @@ ossl_rsa_to_public_key(VALUE self)
     
     GetPKeyRSA(self, pkey);
     /* err check performed by rsa_instance */
-    rsa = RSAPublicKey_dup(pkey->pkey.rsa);
+    rsa = RSAPublicKey_dup(EVP_PKEY_get0_RSA(pkey));
     obj = rsa_instance(CLASS_OF(self), rsa);
     if (obj == Qfalse) {
 	RSA_free(rsa);
@@ -519,14 +561,32 @@ ossl_rsa_blinding_off(VALUE self)
 }
  */
 
-OSSL_PKEY_BN(rsa, n)
-OSSL_PKEY_BN(rsa, e)
-OSSL_PKEY_BN(rsa, d)
-OSSL_PKEY_BN(rsa, p)
-OSSL_PKEY_BN(rsa, q)
-OSSL_PKEY_BN(rsa, dmp1)
-OSSL_PKEY_BN(rsa, dmq1)
-OSSL_PKEY_BN(rsa, iqmp)
+/*
+ * Document-method: OpenSSL::PKey::RSA#set_key
+ * call-seq:
+ *   rsa.set_key(n, e, d) -> self
+ *
+ * Sets _n_, _e_, _d_ for the RSA instance.
+ */
+OSSL_PKEY_BN_DEF3(rsa, RSA, key, n, e, d)
+/*
+ * Document-method: OpenSSL::PKey::RSA#set_factors
+ * call-seq:
+ *   rsa.set_factors(p, q) -> self
+ *
+ * Sets _p_, _q_ for the RSA instance.
+ */
+OSSL_PKEY_BN_DEF2(rsa, RSA, factors, p, q)
+/*
+ * Document-method: OpenSSL::PKey::RSA#set_crt_params
+ * call-seq:
+ *   rsa.set_crt_params(dmp1, dmq1, iqmp) -> self
+ *
+ * Sets _dmp1_, _dmq1_, _iqmp_ for the RSA instance. They are calculated by
+ * <tt>d mod (p - 1)</tt>, <tt>d mod (q - 1)</tt> and <tt>q^(-1) mod p</tt>
+ * respectively.
+ */
+OSSL_PKEY_BN_DEF3(rsa, RSA, crt_params, dmp1, dmq1, iqmp)
 
 /*
  * INIT
@@ -569,6 +629,9 @@ Init_ossl_rsa()
     DEF_OSSL_PKEY_BN(cRSA, rsa, dmp1);
     DEF_OSSL_PKEY_BN(cRSA, rsa, dmq1);
     DEF_OSSL_PKEY_BN(cRSA, rsa, iqmp);
+    rb_define_method(cRSA, "set_key", ossl_rsa_set_key, 3);
+    rb_define_method(cRSA, "set_factors", ossl_rsa_set_factors, 2);
+    rb_define_method(cRSA, "set_crt_params", ossl_rsa_set_crt_params, 3);
 
     rb_define_method(cRSA, "params", ossl_rsa_get_params, 0);
 

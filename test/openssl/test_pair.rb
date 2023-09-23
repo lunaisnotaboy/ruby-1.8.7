@@ -17,7 +17,7 @@ module SSLPair
     host = "127.0.0.1"
     port = 0
     ctx = OpenSSL::SSL::SSLContext.new()
-    ctx.ciphers = "ADH"
+#    ctx.ciphers = "ADH"
     tcps = TCPServer.new(host, port)
     ssls = OpenSSL::SSL::SSLServer.new(tcps, ctx)
     return ssls
@@ -26,7 +26,7 @@ module SSLPair
   def client(port)
     host = "127.0.0.1"
     ctx = OpenSSL::SSL::SSLContext.new()
-    ctx.ciphers = "ADH"
+#    ctx.ciphers = "ADH"
     s = TCPSocket.new(host, port)
     ssl = OpenSSL::SSL::SSLSocket.new(s, ctx)
     ssl.connect

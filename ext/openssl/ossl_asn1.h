@@ -16,6 +16,7 @@
  */
 VALUE asn1time_to_time(ASN1_TIME *);
 time_t time_to_time_t(VALUE);
+void ossl_time_split(VALUE, time_t *, int *);
 
 /*
  * ASN1_STRING conversions

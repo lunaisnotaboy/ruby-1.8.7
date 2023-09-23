@@ -206,7 +206,7 @@ ossl_verify_cb(int ok, X509_STORE_CTX *ctx)
 
     proc = (VALUE)X509_STORE_CTX_get_ex_data(ctx, ossl_verify_cb_idx);
     if ((void*)proc == 0)
-	proc = (VALUE)X509_STORE_get_ex_data(ctx->ctx, ossl_verify_cb_idx);
+	proc = (VALUE)X509_STORE_get_ex_data(X509_STORE_CTX_get0_store(ctx), ossl_verify_cb_idx);
     if ((void*)proc == 0)
 	return ok;
     if (!NIL_P(proc)) {

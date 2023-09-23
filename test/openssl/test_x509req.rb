@@ -30,7 +30,6 @@ class OpenSSL::TestX509Request < Test::Unit::TestCase
     assert_equal(@rsa1024.public_key.to_der, req.public_key.to_der)
     req = OpenSSL::X509::Request.new(req.to_der)
     assert_equal(@rsa1024.public_key.to_der, req.public_key.to_der)
-
     req = issue_csr(0, @dn, @dsa512, OpenSSL::Digest::DSS1.new)
     assert_equal(@dsa512.public_key.to_der, req.public_key.to_der)
     req = OpenSSL::X509::Request.new(req.to_der)
@@ -133,7 +132,6 @@ class OpenSSL::TestX509Request < Test::Unit::TestCase
     assert_equal(true,  req.verify(@rsa2048))
     req.subject = OpenSSL::X509::Name.parse("/C=JP/CN=FooBar")
     assert_equal(false, req.verify(@rsa2048))
-
     req = issue_csr(0, @dn, @dsa512, OpenSSL::Digest::DSS1.new)
     assert_equal(false, req.verify(@dsa256))
     assert_equal(true,  req.verify(@dsa512))

@@ -61,8 +61,12 @@ ossl_digest_new(const EVP_MD *md)
     EVP_MD_CTX *ctx;
 
     ret = ossl_digest_alloc(cDigest);
-    GetDigest(ret, ctx);
-    if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+    ctx = EVP_MD_CTX_new();
+    if (!ctx)
+	ossl_raise(eDigestError, "EVP_MD_CTX_new");
+    DATA_PTR(ret) = ctx;
+
+    if (!EVP_DigestInit_ex(ctx, md, NULL)) {
 	ossl_raise(eDigestError, "Digest initialization failed.");
     }
    
@@ -78,12 +82,8 @@ ossl_digest_alloc(VALUE klass)
     EVP_MD_CTX *ctx;
     VALUE obj;
 
-    ctx = EVP_MD_CTX_create();
-    if (ctx == NULL)
-	ossl_raise(rb_eRuntimeError, "EVP_MD_CTX_create() failed");
-    obj = Data_Wrap_Struct(klass, 0, EVP_MD_CTX_destroy, ctx);
-
-    return obj;
+    ctx = NULL;
+    return Data_Wrap_Struct(klass, 0, EVP_MD_CTX_free, ctx);
 }
 
 VALUE ossl_digest_update(VALUE, VALUE);
@@ -105,8 +105,14 @@ ossl_digest_initialize(int argc, VALUE *argv, VALUE self)
     md = GetDigestPtr(type);
     if (!NIL_P(data)) StringValue(data);
 
-    GetDigest(self, ctx);
-    if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+    Data_Get_Struct(self, EVP_MD_CTX, ctx);
+    if (!ctx) {
+	DATA_PTR(self) = ctx = EVP_MD_CTX_new();
+	if (!ctx)
+	    ossl_raise(eDigestError, "EVP_MD_CTX_new");
+    }
+
+    if (!EVP_DigestInit_ex(ctx, md, NULL)) {
 	ossl_raise(eDigestError, "Digest initialization failed.");
     }
     
@@ -122,7 +128,12 @@ ossl_digest_copy(VALUE self, VALUE other)
     rb_check_frozen(self);
     if (self == other) return self;
 
-    GetDigest(self, ctx1);
+    Data_Get_Struct(self, EVP_MD_CTX, ctx1);
+    if (!ctx1) {
+        DATA_PTR(self) = ctx1 = EVP_MD_CTX_new();
+        if (!ctx1)
+            ossl_raise(eDigestError, "EVP_MD_CTX_new");
+    }
     SafeGetDigest(other, ctx2);
 
     if (!EVP_MD_CTX_copy(ctx1, ctx2)) {

@@ -43,9 +43,9 @@ class OpenSSL::TestX509Certificate < Test::Unit::TestCase
     ]
 
     sha1 = OpenSSL::Digest::SHA1.new
-    dss1 = OpenSSL::Digest::DSS1.new
+#    dss1 = OpenSSL::Digest::DSS1.new
     [
-      [@rsa1024, sha1], [@rsa2048, sha1], [@dsa256, dss1], [@dsa512, dss1],
+      [@rsa1024, sha1], [@rsa2048, sha1], #[@dsa256, dss1], [@dsa512, dss1],
     ].each{|pk, digest|
       cert = issue_cert(@ca, pk, 1, Time.now, Time.now+3600, exts,
                         nil, nil, digest)

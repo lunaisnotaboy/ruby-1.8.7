@@ -63,7 +63,7 @@ typedef int i2d_of_void();
 	(char *(*)())d2i_PKCS7_RECIP_INFO, (char *)ri)
 #endif
 
-#if !defined(HAVE_EVP_MD_CTX_INIT)
+#if 0 //!defined(HAVE_EVP_MD_CTX_INIT)
 void HMAC_CTX_init(HMAC_CTX *ctx);
 #endif
 
@@ -71,15 +71,15 @@ void HMAC_CTX_init(HMAC_CTX *ctx);
 void HMAC_CTX_copy(HMAC_CTX *out, HMAC_CTX *in);
 #endif
 
-#if !defined(HAVE_HMAC_CTX_CLEANUP)
+#if 0 //!defined(HAVE_HMAC_CTX_CLEANUP)
 void HMAC_CTX_cleanup(HMAC_CTX *ctx);
 #endif
 
-#if !defined(HAVE_EVP_MD_CTX_CREATE)
+#if 0 //!defined(HAVE_EVP_MD_CTX_CREATE)
 EVP_MD_CTX *EVP_MD_CTX_create(void);
 #endif
 
-#if !defined(HAVE_EVP_MD_CTX_INIT)
+#if 0 //!defined(HAVE_EVP_MD_CTX_INIT)
 void EVP_MD_CTX_init(EVP_MD_CTX *ctx);
 #endif
 
@@ -87,7 +87,7 @@ void EVP_MD_CTX_init(EVP_MD_CTX *ctx);
 int EVP_MD_CTX_cleanup(EVP_MD_CTX *ctx);
 #endif
 
-#if !defined(HAVE_EVP_MD_CTX_DESTROY)
+#if 0 //!defined(HAVE_EVP_MD_CTX_DESTROY)
 void EVP_MD_CTX_destroy(EVP_MD_CTX *ctx);
 #endif
 
@@ -186,6 +186,7 @@ int PEM_def_callback(char *buf, int num, int w, void *key);
 }
 #endif
 
+#include "bnet_openssl_missing.h"
 
 #endif /* _OSSL_OPENSSL_MISSING_H_ */
 

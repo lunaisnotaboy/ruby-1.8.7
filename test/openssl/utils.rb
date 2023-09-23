@@ -72,6 +72,22 @@ Q1VB8qkJN7rA7/2HrCR3gTsWNb1YhAsnFsoeRscC+LxXoXi9OAIUBG98h4tilg6S
 -----END DSA PRIVATE KEY-----
   _end_of_pem_
 
+  TEST_KEY_DH1 = OpenSSL::PKey::DH.new <<-_end_of_pem_
+-----BEGIN DH PARAMETERS-----
+MIICCAKCAgEAvRzXYxY6L2DjeYmm1eowtMDu1it3j+VwFr6s6PRWzc1apMtztr9G
+xZ2mYndUAJLgNLO3n2fUDCYVMB6ZkcekW8Siocof3xWiMA6wqZ6uw0dsE3q7ZX+6
+TLjgSjaXeGvjutvuEwVrFeaUi83bMgfXN8ToxIQVprIF35sYFt6fpbFATKfW7qqi
+P1pQkjmCskU4tztaWvlLh0qg85wuQGnpJaQT3gS30378i0IGbA0EBvJcSpTHYbLa
+nsdI9bfN/ZVgeolVMNMU9/n8R8vRhNPcHuciFwaqS656q+HavCIyxw/LfjSwwFvR
+TngCn0wytRErkzFIXnRKckh8/BpI4S+0+l1NkOwG4WJ55KJ/9OOdZW5o/QCp2bDi
+E0JN1EP/gkSom/prq8JR/yEqtsy99uc5nUxPmzv0IgdcFHZEfiQU7iRggEbx7qfQ
+Ve55XksmmJInmpCy1bSabAEgIKp8Ckt5KLYZ0RgTXUhcEpsxEo6cuAwoSJT5o4Rp
+yG3xow2ozPcqZkvb+d2CHj1sc54w9BVFAjVANEKmRil/9WKz14bu3wxEhOPqC54n
+QojjLcoXSoT66ZUOQnYxTSiLtzoKGPy8cAVPbkBrXz2u2sj5gcvr1JjoGjdHm9/3
+qnqC8fsTz8UndKNIQC337o4K0833bQMzRGl1/qjbAPit2B7E3b6xTZMCAQI=
+-----END DH PARAMETERS-----
+  _end_of_pem_
+
   module_function
 
   def issue_cert(dn, key, serial, not_before, not_after, extensions,

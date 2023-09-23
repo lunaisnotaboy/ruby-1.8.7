@@ -134,6 +134,34 @@ have_struct_member("EVP_CIPHER_CTX", "flags", "openssl/evp.h")
 have_struct_member("EVP_CIPHER_CTX", "engine", "openssl/evp.h")
 have_struct_member("X509_ATTRIBUTE", "single", "openssl/x509.h")
 
+# Bravenet Changes
+if !have_struct_member("SSL", "ctx", "openssl/ssl.h") ||
+    try_static_assert("LIBRESSL_VERSION_NUMBER >= 0x2070000fL", "openssl/opensslv.h")
+  $defs.push("-DHAVE_OPAQUE_OPENSSL")
+end
+have_func("BN_GENCB_new")
+have_func("BN_GENCB_free")
+have_func("BN_GENCB_get_arg")
+have_func("EVP_MD_CTX_free")
+have_func("EVP_MD_CTX_new")
+have_func("EVP_PKEY_up_ref")
+have_func("HMAC_CTX_new")
+have_func("HMAC_CTX_free")
+have_func("SSL_CTX_get_ciphers")
+have_func("SSL_SESSION_get_protocol_version")
+have_func("SSL_SESSION_up_ref")
+have_func("X509_CRL_up_ref")
+have_func("X509_get0_notBefore")
+have_func("X509_get0_tbs_sigalg")
+have_func("X509_REVOKED_get0_revocationDate")
+have_func("X509_REVOKED_get0_serialNumber")
+have_func("X509_STORE_CTX_get0_cert")
+have_func("X509_STORE_CTX_get0_store")
+have_func("X509_STORE_CTX_get0_untrusted")
+have_func("X509_STORE_up_ref")
+have_func("X509_up_ref")
+# End Bravenet Changes
+
 message "=== Checking done. ===\n"
 
 create_header

@@ -125,6 +125,7 @@ ossl_rand_pseudo_bytes(VALUE self, VALUE len)
     return str;
 }
 
+#ifdef HAVE_RAND_EGD
 /*
  *  call-seq:
  *     egd(filename) -> true
@@ -158,6 +159,7 @@ ossl_rand_egd_bytes(VALUE self, VALUE filename, VALUE len)
     }
     return Qtrue;
 }
+#endif /* HAVE_RAND_EGD */
 
 /*
  *  call-seq:
@@ -195,8 +197,10 @@ Init_ossl_rand()
     DEFMETH(mRandom, "write_random_file", ossl_rand_write_file, 1);
     DEFMETH(mRandom, "random_bytes", ossl_rand_bytes, 1);
     DEFMETH(mRandom, "pseudo_bytes", ossl_rand_pseudo_bytes, 1);
+#ifdef HAVE_RAND_EGD
     DEFMETH(mRandom, "egd", ossl_rand_egd, 1);
     DEFMETH(mRandom, "egd_bytes", ossl_rand_egd_bytes, 2);	
+#endif /* HAVE_RAND_EGD */
     DEFMETH(mRandom, "status?", ossl_rand_status, 0)
 }
 

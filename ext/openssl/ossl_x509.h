@@ -16,6 +16,8 @@
  */
 extern VALUE mX509;
 
+ASN1_TIME *ossl_x509_time_adjust(ASN1_TIME *, VALUE);
+
 void Init_ossl_x509(void);
 
 /*

@@ -106,10 +106,10 @@ struct {
     OSSL_SSL_METHOD_ENTRY(SSLv2),
     OSSL_SSL_METHOD_ENTRY(SSLv2_server),
     OSSL_SSL_METHOD_ENTRY(SSLv2_client),
-#endif
     OSSL_SSL_METHOD_ENTRY(SSLv3),
     OSSL_SSL_METHOD_ENTRY(SSLv3_server),
     OSSL_SSL_METHOD_ENTRY(SSLv3_client),
+#endif
     OSSL_SSL_METHOD_ENTRY(SSLv23),
     OSSL_SSL_METHOD_ENTRY(SSLv23_server),
     OSSL_SSL_METHOD_ENTRY(SSLv23_client),
@@ -125,8 +125,10 @@ int ossl_ssl_ex_tmp_dh_callback_idx;
 static void
 ossl_sslctx_free(SSL_CTX *ctx)
 {
+#if !defined(HAVE_X509_STORE_UP_REF)
     if(ctx && SSL_CTX_get_ex_data(ctx, ossl_ssl_ex_store_p)== (void*)1)
 	ctx->cert_store = NULL;
+#endif
     SSL_CTX_free(ctx);
 }
 
@@ -134,13 +136,33 @@ static VALUE
 ossl_sslctx_s_alloc(VALUE klass)
 {
     SSL_CTX *ctx;
+    VALUE obj;
 
+    obj = Data_Wrap_Struct(klass, 0, ossl_sslctx_free, 0);
+#if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(LIBRESSL_VERSION_NUMBER)
+    ctx = SSL_CTX_new(TLS_method());
+#else
     ctx = SSL_CTX_new(SSLv23_method());
+#endif
     if (!ctx) {
         ossl_raise(eSSLError, "SSL_CTX_new:");
     }
     SSL_CTX_set_mode(ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
-    return Data_Wrap_Struct(klass, 0, ossl_sslctx_free, ctx);
+    DATA_PTR(obj) = ctx;
+
+#if !defined(OPENSSL_NO_EC) && defined(HAVE_SSL_CTX_SET_ECDH_AUTO)
+    /* We use SSL_CTX_set1_curves_list() to specify the curve used in ECDH. It
+     * allows to specify multiple curve names and OpenSSL will select
+     * automatically from them. In OpenSSL 1.0.2, the automatic selection has to
+     * be enabled explicitly. But OpenSSL 1.1.0 removed the knob and it is
+     * always enabled. To uniform the behavior, we enable the automatic
+     * selection also in 1.0.2. Users can still disable ECDH by removing ECDH
+     * cipher suites by SSLContext#ciphers=. */
+    if (!SSL_CTX_set_ecdh_auto(ctx, 1))
+        ossl_raise(eSSLError, "SSL_CTX_set_ecdh_auto");
+#endif
+
+    return obj;
 }
 
 static VALUE
@@ -247,7 +269,7 @@ ossl_call_tmp_dh_callback(VALUE *args)
     if (NIL_P(cb)) return Qfalse;
     dh = rb_funcall(cb, rb_intern("call"), 3, args[0], args[1], args[2]);
     pkey = GetPKeyPtr(dh);
-    if (EVP_PKEY_type(pkey->type) != EVP_PKEY_DH) return Qfalse;
+    if (EVP_PKEY_base_id(pkey) != EVP_PKEY_DH) return Qfalse;
     ossl_ssl_set_tmp_dh(args[0], dh);
 
     return Qtrue;
@@ -266,7 +288,8 @@ ossl_tmp_dh_callback(SSL *ssl, int is_export, int keylength)
                          (VALUE)args, &status);
     if (status || !success) return NULL;
 
-    return GetPKeyPtr(ossl_ssl_get_tmp_dh(args[0]))->pkey.dh;
+    return EVP_PKEY_get0_DH(GetPKeyPtr(ossl_ssl_get_tmp_dh(args[0])));
+
 }
 
 static DH*
@@ -373,7 +396,7 @@ ossl_sslctx_session_new_cb(SSL *ssl, SSL_SESSION *sess)
     	return 1;
     ssl_obj = (VALUE)ptr;
     sess_obj = rb_obj_alloc(cSSLSession);
-    CRYPTO_add(&sess->references, 1, CRYPTO_LOCK_SSL_SESSION);
+    SSL_SESSION_up_ref(sess);
     DATA_PTR(sess_obj) = sess;
 
     ary = rb_ary_new2(2);
@@ -416,7 +439,7 @@ ossl_sslctx_session_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
     	return;
     sslctx_obj = (VALUE)ptr;
     sess_obj = rb_obj_alloc(cSSLSession);
-    CRYPTO_add(&sess->references, 1, CRYPTO_LOCK_SSL_SESSION);
+    SSL_SESSION_up_ref(sess);
     DATA_PTR(sess_obj) = sess;
 
     ary = rb_ary_new2(2);
@@ -490,7 +513,11 @@ ossl_sslctx_setup(VALUE self)
 	 */
         store = GetX509StorePtr(val); /* NO NEED TO DUP */
         SSL_CTX_set_cert_store(ctx, store);
+#if !defined(HAVE_X509_STORE_UP_REF)
         SSL_CTX_set_ex_data(ctx, ossl_ssl_ex_store_p, (void*)1);
+#else /* Fixed in OpenSSL 1.0.2; bff9ce4db38b (master), 5b4b9ce976fc (1.0.2) */
+        X509_STORE_up_ref(store);
+#endif
     }
 
     val = ossl_sslctx_get_extra_cert(self);
@@ -624,7 +651,7 @@ ossl_sslctx_get_ciphers(VALUE self)
         rb_warning("SSL_CTX is not initialized.");
         return Qnil;
     }
-    ciphers = ctx->cipher_list;
+    ciphers = SSL_CTX_get_ciphers(ctx);
 
     if (!ciphers)
         return rb_ary_new();

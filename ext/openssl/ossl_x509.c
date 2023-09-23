@@ -16,6 +16,17 @@ VALUE mX509;
 #define DefX509Default(x,i) \
   rb_define_const(mX509, "DEFAULT_" #x, rb_str_new2(X509_get_default_##i()))
 
+ASN1_TIME *
+ossl_x509_time_adjust(ASN1_TIME *s, VALUE time)
+{
+    time_t sec;
+
+    int off_days;
+
+    ossl_time_split(time, &sec, &off_days);
+    return X509_time_adj_ex(s, off_days, 0, &sec);
+}
+
 void
 Init_ossl_x509()
 {

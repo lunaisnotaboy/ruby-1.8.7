@@ -99,16 +99,22 @@ ossl_x509revoked_get_serial(VALUE self)
 
     GetX509Rev(self, rev);
 
-    return asn1integer_to_num(rev->serialNumber);
+    return asn1integer_to_num(X509_REVOKED_get0_serialNumber(rev));
 }
 
 static VALUE 
 ossl_x509revoked_set_serial(VALUE self, VALUE num)
 {
     X509_REVOKED *rev;
+    ASN1_INTEGER *asn1int;
 
     GetX509Rev(self, rev);
-    rev->serialNumber = num_to_asn1integer(num, rev->serialNumber);
+    asn1int = num_to_asn1integer(num, NULL);
+    if (!X509_REVOKED_set_serialNumber(rev, asn1int)) {
+       ASN1_INTEGER_free(asn1int);
+       ossl_raise(eX509RevError, "X509_REVOKED_set_serialNumber");
+    }
+    ASN1_INTEGER_free(asn1int);
 
     return num;
 }
@@ -117,25 +123,30 @@ static VALUE
 ossl_x509revoked_get_time(VALUE self)
 {
     X509_REVOKED *rev;
+    const ASN1_TIME *time;
 	
     GetX509Rev(self, rev);
+    time = X509_REVOKED_get0_revocationDate(rev);
+    if (!time)
+        return Qnil;
 
-    return asn1time_to_time(rev->revocationDate);
+    return asn1time_to_time(time);
 }
 
 static VALUE 
 ossl_x509revoked_set_time(VALUE self, VALUE time)
 {
     X509_REVOKED *rev;
-    time_t sec;
+    ASN1_TIME *asn1time;
 
-    sec = time_to_time_t(time);
     GetX509Rev(self, rev);
-    if (!X509_time_adj(rev->revocationDate, 0, &sec)) {
+    asn1time = ossl_x509_time_adjust(NULL, time);
+    if (!X509_REVOKED_set_revocationDate(rev, asn1time)) {
+        ASN1_TIME_free(asn1time);
 	ossl_raise(eX509RevError, NULL);
     }
 
-    return time;
+    ASN1_TIME_free(asn1time);
 }
 /*
  * Gets X509v3 extensions as array of X509Ext objects
@@ -179,8 +190,8 @@ ossl_x509revoked_set_extensions(VALUE self, VALUE ary)
 	OSSL_Check_Kind(RARRAY_PTR(ary)[i], cX509Ext);
     }
     GetX509Rev(self, rev);
-    sk_X509_EXTENSION_pop_free(rev->extensions, X509_EXTENSION_free);
-    rev->extensions = NULL;
+    while ((ext = X509_REVOKED_delete_ext(rev, 0)))
+        X509_EXTENSION_free(ext);
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	item = RARRAY_PTR(ary)[i];
 	ext = DupX509ExtPtr(item);

@@ -23,9 +23,14 @@ typedef struct {
 
 #define GetPKeyEC(obj, pkey) do { \
     GetPKey(obj, pkey); \
-    if (EVP_PKEY_type(pkey->type) != EVP_PKEY_EC) { \
+    if (EVP_PKEY_base_id(pkey) != EVP_PKEY_EC) { \
 	ossl_raise(rb_eRuntimeError, "THIS IS NOT A EC PKEY!"); \
     } \
+} while (0)
+#define GetEC(obj, key) do { \
+    EVP_PKEY *_pkey; \
+    GetPKeyEC(obj, _pkey); \
+    (key) = EVP_PKEY_get0_EC_KEY(_pkey); \
 } while (0)
 
 #define SafeGet_ec_group(obj, group) do { \
@@ -33,11 +38,7 @@ typedef struct {
     Data_Get_Struct(obj, ossl_ec_group, group); \
 } while(0)
 
-#define Get_EC_KEY(obj, key) do { \
-    EVP_PKEY *pkey; \
-    GetPKeyEC(obj, pkey); \
-    key = pkey->pkey.ec; \
-} while(0)
+#define Get_EC_KEY(obj, key) GetEC(obj, key)
 
 #define Require_EC_KEY(obj, key) do { \
     Get_EC_KEY(obj, key); \
@@ -133,7 +134,7 @@ VALUE ossl_ec_new(EVP_PKEY *pkey)
     if (!pkey) {
 	obj = ec_instance(cEC, EC_KEY_new());
     } else {
-	if (EVP_PKEY_type(pkey->type) != EVP_PKEY_EC) {
+	if (EVP_PKEY_base_id(pkey) != EVP_PKEY_EC) {
 	    ossl_raise(rb_eTypeError, "Not a EC key!");
 	}
 	WrapPKey(cEC, obj, pkey);
@@ -165,7 +166,7 @@ static VALUE ossl_ec_key_initialize(int argc, VALUE *argv, VALUE self)
     VALUE group = Qnil;
 	
     GetPKey(self, pkey);
-    if (pkey->pkey.ec)
+    if (EVP_PKEY_base_id(pkey) != EVP_PKEY_NONE)
         rb_raise(eECError, "EC_KEY already initialized");
 
     rb_scan_args(argc, argv, "02", &arg, &pass);

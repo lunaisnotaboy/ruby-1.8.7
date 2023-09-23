@@ -7,10 +7,11 @@ require "test/unit"
 if defined?(OpenSSL)
 
 class OpenSSL::TestX509Name < Test::Unit::TestCase
-  OpenSSL::ASN1::ObjectId.register(
-    "1.2.840.113549.1.9.1", "emailAddress", "emailAddress")
-  OpenSSL::ASN1::ObjectId.register(
-    "2.5.4.5", "serialNumber", "serialNumber")
+# Fixes :in `register': oid exists (OpenSSL::ASN1::ASN1Error) - OpenSSL 1.1 and newer forbids this
+#  OpenSSL::ASN1::ObjectId.register(
+#    "1.2.840.113549.1.9.1", "emailAddress", "emailAddress")
+#  OpenSSL::ASN1::ObjectId.register(
+#    "2.5.4.5", "serialNumber", "serialNumber")
 
   def setup
     @obj_type_tmpl = Hash.new(OpenSSL::ASN1::PRINTABLESTRING)

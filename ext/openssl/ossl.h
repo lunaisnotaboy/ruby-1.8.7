@@ -54,7 +54,7 @@ extern "C" {
 #endif
 #include <errno.h>
 #include <openssl/err.h>
-#include <openssl/asn1_mac.h>
+#include <openssl/asn1.h>
 #include <openssl/x509v3.h>
 #include <openssl/ssl.h>
 #include <openssl/pkcs12.h>
@@ -73,6 +73,16 @@ extern "C" {
 #  define OSSL_OCSP_ENABLED
 #  include <openssl/ocsp.h>
 #endif
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
+#include <openssl/dsa.h>
+#include <openssl/evp.h>
+#include <openssl/dh.h>
+#include <openssl/crypto.h>
+#ifndef OPENSSL_NO_TS
+  #include <openssl/ts.h>
+#endif
+#include <openssl/ocsp.h>
 
 /*
  * Common Module

@@ -48,7 +48,7 @@ void *X509_STORE_get_ex_data(X509_STORE *str, int idx)
 }
 #endif
 
-#if !defined(HAVE_EVP_MD_CTX_CREATE)
+#if 0 //!defined(HAVE_EVP_MD_CTX_CREATE)
 EVP_MD_CTX *
 EVP_MD_CTX_create(void)
 {
@@ -61,7 +61,7 @@ EVP_MD_CTX_create(void)
 }
 #endif
 
-#if !defined(HAVE_EVP_MD_CTX_CLEANUP)
+#if 0 //!defined(HAVE_EVP_MD_CTX_CLEANUP)
 int
 EVP_MD_CTX_cleanup(EVP_MD_CTX *ctx)
 {
@@ -72,7 +72,7 @@ EVP_MD_CTX_cleanup(EVP_MD_CTX *ctx)
 }
 #endif
 
-#if !defined(HAVE_EVP_MD_CTX_DESTROY)
+#if 0 //!defined(HAVE_EVP_MD_CTX_DESTROY)
 void
 EVP_MD_CTX_destroy(EVP_MD_CTX *ctx)
 {
@@ -81,7 +81,7 @@ EVP_MD_CTX_destroy(EVP_MD_CTX *ctx)
 }
 #endif
 
-#if !defined(HAVE_EVP_MD_CTX_INIT)
+#if 0 //!defined(HAVE_EVP_MD_CTX_INIT)
 void
 EVP_MD_CTX_init(EVP_MD_CTX *ctx)
 {
@@ -89,7 +89,7 @@ EVP_MD_CTX_init(EVP_MD_CTX *ctx)
 }
 #endif
 
-#if !defined(HAVE_HMAC_CTX_INIT)
+#if 0 //!defined(HAVE_HMAC_CTX_INIT)
 void
 HMAC_CTX_init(HMAC_CTX *ctx)
 {
@@ -99,7 +99,7 @@ HMAC_CTX_init(HMAC_CTX *ctx)
 }
 #endif
 
-#if !defined(HAVE_HMAC_CTX_CLEANUP)
+#if 0 //!defined(HAVE_HMAC_CTX_CLEANUP)
 void
 HMAC_CTX_cleanup(HMAC_CTX *ctx)
 {
@@ -341,3 +341,42 @@ PEM_def_callback(char *buf, int num, int w, void *key)
 }
 #endif
 
+// Bravenet Changes
+/*** added in 1.1.0 ***/
+#if !defined(HAVE_HMAC_CTX_NEW)
+HMAC_CTX *
+ossl_HMAC_CTX_new(void)
+{
+    HMAC_CTX *ctx = OPENSSL_malloc(sizeof(HMAC_CTX));
+    if (!ctx)
+        return NULL;
+    HMAC_CTX_init(ctx);
+    return ctx;
+}
+#endif
+
+#if !defined(HAVE_HMAC_CTX_FREE)
+void
+ossl_HMAC_CTX_free(HMAC_CTX *ctx)
+{
+    if (ctx) {
+        HMAC_CTX_cleanup(ctx);
+        OPENSSL_free(ctx);
+    }
+}
+#endif
+
+void
+ossl_bin2hex(unsigned char *in, char *out, size_t inlen)
+{
+    const char *hex = "0123456789abcdef";
+    size_t i;
+
+    //assert(inlen <= LONG_MAX / 2);
+    for (i = 0; i < inlen; i++) {
+        unsigned char p = in[i];
+
+        out[i * 2 + 0] = hex[p >> 4];
+        out[i * 2 + 1] = hex[p & 0x0f];
+    }
+}

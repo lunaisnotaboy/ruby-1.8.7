@@ -74,6 +74,23 @@ time_to_time_t(VALUE time)
     return (time_t)NUM2LONG(rb_Integer(time));
 }
 
+void
+ossl_time_split(VALUE time, time_t *sec, int *days)
+{
+    VALUE num = rb_Integer(time);
+
+    if (FIXNUM_P(num)) {
+        time_t t = FIX2LONG(num);
+        *sec = t % 86400;
+        *days = (int)(t / 86400);
+    }
+    else {
+        *days = NUM2INT(rb_funcall(num, rb_intern("/"), 1, INT2FIX(86400)));
+        *sec = (long)(rb_funcall(num, rb_intern("%"), 1, INT2FIX(86400)));
+    }
+}
+
+
 /*
  * STRING conversion
  */
@@ -314,10 +331,12 @@ decode_bool(unsigned char* der, int length)
     unsigned char *p;
 
     p = der;
-    if((val = d2i_ASN1_BOOLEAN(NULL, &p, length)) < 0)
-	ossl_raise(eASN1Error, NULL);
+    if (length != 3)
+	ossl_raise(eASN1Error, "invalid length for BOOLEAN");
+    if (p[0] != 1 || p[1] != 1)
+	ossl_raise(eASN1Error, "invalid BOOLEAN");
 
-    return val ? Qtrue : Qfalse;
+    return p[2] ? Qtrue : Qfalse;
 }
 
 static VALUE

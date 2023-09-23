@@ -11,6 +11,16 @@
 #include "ossl.h"
 #include <rubysig.h>
 
+#define NewX509Store(klass) \
+    Data_Wrap_Struct((klass), 0, X509_STORE_free, 0);
+#define SetX509Store(obj, st) do { \
+    if (!(st)) { \
+        ossl_raise(rb_eRuntimeError, "STORE wasn't initialized!"); \
+    } \
+    DATA_PTR(obj) = (st); \
+} while (0)
+
+
 #define WrapX509Store(klass, obj, st) do { \
     if (!st) { \
 	ossl_raise(rb_eRuntimeError, "STORE wasn't initialized!"); \
@@ -81,7 +91,7 @@ DupX509StorePtr(VALUE obj)
     X509_STORE *store;
 
     SafeGetX509Store(obj, store);
-    CRYPTO_add(&store->references, 1, CRYPTO_LOCK_X509_STORE);
+    X509_STORE_up_ref(store);
     
     return store;
 }
@@ -95,10 +105,11 @@ ossl_x509store_alloc(VALUE klass)
     X509_STORE *store;
     VALUE obj;
 
+    obj = NewX509Store(klass);
     if((store = X509_STORE_new()) == NULL){
         ossl_raise(eX509StoreError, NULL);
     }
-    WrapX509Store(klass, obj, store);
+    SetX509Store(obj, store);
 
     return obj;
 }
@@ -131,7 +142,10 @@ ossl_x509store_initialize(int argc, VALUE *argv, VALUE self)
 
 /* BUG: This method takes any number of arguments but appears to ignore them. */
     GetX509Store(self, store);
+#if !defined(HAVE_OPAQUE_OPENSSL)
+    /* [Bug #405] [Bug #1678] [Bug #3000]; already fixed? */
     store->ex_data.sk = NULL;
+#endif
     X509_STORE_set_verify_cb_func(store, ossl_verify_cb);
     ossl_x509store_set_vfy_cb(self, Qnil);
 
@@ -344,11 +358,12 @@ ossl_x509stctx_clear_ptr(VALUE obj)
 static void
 ossl_x509stctx_free(X509_STORE_CTX *ctx)
 {
-    if(ctx->untrusted)
-	sk_X509_pop_free(ctx->untrusted, X509_free);
-    if(ctx->cert)
-	X509_free(ctx->cert);
+    if (X509_STORE_CTX_get0_untrusted(ctx))
+	sk_X509_pop_free(X509_STORE_CTX_get0_untrusted(ctx), X509_free);
+    if (X509_STORE_CTX_get0_cert(ctx))
+	X509_free(X509_STORE_CTX_get0_cert(ctx));
     X509_STORE_CTX_free(ctx);
+
 }
 
 static VALUE 
@@ -501,11 +516,13 @@ ossl_x509stctx_get_curr_crl(VALUE self)
 {
 #if (OPENSSL_VERSION_NUMBER >= 0x00907000L)
     X509_STORE_CTX *ctx;
+    X509_CRL *crl;
 
     GetX509StCtx(self, ctx);
-    if(!ctx->current_crl) return Qnil;
+    crl = X509_STORE_CTX_get0_current_crl(ctx);
+    if(!crl) return Qnil;
 
-    return ossl_x509crl_new(ctx->current_crl);
+    return ossl_x509crl_new(crl);
 #else
     return Qnil;
 #endif

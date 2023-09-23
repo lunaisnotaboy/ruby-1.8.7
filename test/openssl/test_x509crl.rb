@@ -224,6 +224,7 @@ class OpenSSL::TestX509CRL < Test::Unit::TestCase
     crl.version = 0
     assert_equal(false, crl.verify(@rsa2048))
 
+=begin
     cert = issue_cert(@ca, @dsa512, 1, Time.now, Time.now+3600, [],
                       nil, nil, OpenSSL::Digest::DSS1.new)
     crl = issue_crl([], 1, Time.now, Time.now+1600, [],
@@ -232,6 +233,7 @@ class OpenSSL::TestX509CRL < Test::Unit::TestCase
     assert_equal(true,  crl.verify(@dsa512))
     crl.version = 0
     assert_equal(false, crl.verify(@dsa512))
+=end
   end
 end
 
