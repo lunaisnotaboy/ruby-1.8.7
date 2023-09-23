@@ -636,7 +636,6 @@ Init_ossl_rsa()
     rb_define_method(cRSA, "params", ossl_rsa_get_params, 0);
 
     DefRSAConst(PKCS1_PADDING);
-    DefRSAConst(SSLV23_PADDING);
     DefRSAConst(NO_PADDING);
     DefRSAConst(PKCS1_OAEP_PADDING);
 

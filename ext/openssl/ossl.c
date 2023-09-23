@@ -391,18 +391,8 @@ ossl_debug_get(VALUE self)
 static VALUE
 ossl_debug_set(VALUE self, VALUE val)
 {
-    VALUE old = dOSSL;
-    dOSSL = val;
+    dOSSL = RTEST(val) ? Qtrue : Qfalse;
 	
-    if (old != dOSSL) {
-	if (dOSSL == Qtrue) {
-	    CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_ON);
-	    fprintf(stderr, "OSSL_DEBUG: IS NOW ON!\n");
-	} else if (old == Qtrue) {
-	    CRYPTO_mem_ctrl(CRYPTO_MEM_CHECK_OFF);
-	    fprintf(stderr, "OSSL_DEBUG: IS NOW OFF!\n");
-	}
-    }
     return val;
 }
 
